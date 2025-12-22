@@ -11,28 +11,16 @@ interface APIProviderConfig {
   apiKey: string;
 }
 
-// 中文提示词 - 严格单条版
-const PROMPT_ZH = `将 git diff 中的所有修改**合并**为**唯一一条**符合 Conventional Commits 规范的提交信息。
+function getPrompt(locale: string): string {
+  const language = locale === 'zh' ? 'Chinese Simplified' : 'English';
 
-核心原则: 无论修改了多少文件，最终输出**只能有一个 Header 和一个 Body**。
-
-要求:
-- Header: <type>(<scope>): <中文描述，50字内，祈使语气，无句号>
-- type 必须为 [build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test] 中的一个
-- scope 选择: 必须将所有修改归纳为一个最主要的 scope，或使用 "project"、"refactor" 等通用词。**严禁**输出多个 Header。
-- Body: 必须包含，用 - 列表说明，按逻辑功能归类（如“修复构建问题”、“优化 UI”）。
-- **严禁**按文件分段（如 "feat(A): ... feat(B): ..." 是错误的）。
-- 忽略仅为空白字符的更改（除非是 style 类型）
-- 仅输出提交信息，不要代码块或解释`;
-
-// 英文提示词 - 严格单条版
-const PROMPT_EN = `Consolidate ALL changes in the git diff into **A SINGLE** Conventional Commits message.
+  const PROMPT = `Consolidate ALL changes in the git diff into **A SINGLE** Conventional Commits message.
 
 CORE PRINCIPLE: Regardless of how many files are changed, output **ONLY ONE Header and ONE Body**.
 
 Requirements:
-- **MUST** apply with Chinese Simplified
-- Header: <type>(<scope>): <Chinese Simplified, max 50 chars, imperative, no period>
+- **MUST** apply with ${language}
+- Header: <type>(<scope>): <${language}, max 50 chars, imperative, no period>
 - type must be one of [build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test]
 - scope: Summarize all changes into one primary scope, accurately classify the commit scope. If uncertain, provide the best guess: Noun describing a section of the codebase. E.g.: areas, contacts, containers, orders, prices, settings, statistics, core, ui, config, yarn, gradle, deps, github-actions, release.
 - **DO NOT** output multiple headers.
@@ -40,6 +28,9 @@ Requirements:
 - **STRICTLY FORBIDDEN** to split by file (e.g., "feat(A): ... feat(B): ..." is WRONG).
 - Ignore whitespace-only changes (unless style type)
 - Output ONLY the commit message, no code blocks or explanation`;
+
+  return PROMPT;
+}
 
 // 获取 API 提供者配置
 function getAPIProviderConfig(): APIProviderConfig {
@@ -251,7 +242,7 @@ export async function generateCommitMessage(
     throw new Error(locale === 'zh' ? 'API Key 未提供。' : 'API Key is not provided.');
   }
 
-  const systemPrompt = PROMPT_EN;
+  const systemPrompt = getPrompt(locale);
   const userMessage = `Git Diff:\n${diff}`;
 
   try {
