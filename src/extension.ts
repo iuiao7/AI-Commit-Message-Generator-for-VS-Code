@@ -52,30 +52,38 @@ export function activate(context: vscode.ExtensionContext) {
   // 状态栏
   let statusItem: vscode.StatusBarItem | undefined;
 
+  // 获取 Git InputBox 引用
+  async function getRepoInputBox(): Promise<any> {
+    // 激活 SCM 视图
+    await vscode.commands.executeCommand('workbench.view.scm');
+
+    // 获取 git 扩展的 API（如果存在）
+    const gitExt = vscode.extensions.getExtension('vscode.git');
+    if (gitExt) {
+      const exportsAny = gitExt.isActive ? (gitExt.exports as any) : await gitExt.activate();
+      const gitApi = typeof exportsAny?.getAPI === 'function' ? exportsAny.getAPI(1) : exportsAny;
+      const repos = (gitApi?.repositories ?? []) as any[];
+      if (repos.length > 0 && repos[0]?.inputBox) {
+        return repos[0].inputBox;
+      }
+    }
+
+    // 回退: scm.inputBox
+    const scmAny = vscode.scm as any;
+    if (scmAny && scmAny.inputBox) {
+      return scmAny.inputBox;
+    }
+
+    return null;
+  }
+
   // 安全设置提交消息到输入框的辅助函数
   async function setCommitMessage(message: string, output: vscode.OutputChannel) {
     try {
-      // 激活 SCM 视图
-      await vscode.commands.executeCommand('workbench.view.scm');
-      // 获取 git 扩展的 API（如果存在）
-      const gitExt = vscode.extensions.getExtension('vscode.git');
-      if (gitExt) {
-        const exportsAny = gitExt.isActive ? (gitExt.exports as any) : await gitExt.activate();
-        // 如果是 GitExtension 格式则通过 getAPI(1) 获取，如果是 API 则直接使用
-        const gitApi = typeof exportsAny?.getAPI === 'function' ? exportsAny.getAPI(1) : exportsAny;
-        // 如果第一个仓库有 inputBox，则设置到那里
-        const repos = (gitApi?.repositories ?? []) as any[];
-        if (repos.length > 0 && repos[0]?.inputBox) {
-          repos[0].inputBox.value = message;
-          output.appendLine(M.commitArea.copiedGitApi());
-          return;
-        }
-      }
-      // 回退: scm.inputBox
-      const scmAny = vscode.scm as any;
-      if (scmAny && scmAny.inputBox) {
-        scmAny.inputBox.value = message;
-        output.appendLine(M.commitArea.copiedScm());
+      const inputBox = await getRepoInputBox();
+      if (inputBox) {
+        inputBox.value = message;
+        output.appendLine(isChinese() ? '[已转录到提交消息栏]' : '[Committed message pasted]');
         return;
       }
       output.appendLine(M.commitArea.warnNoAccess());
@@ -189,14 +197,40 @@ export function activate(context: vscode.ExtensionContext) {
 
       // 2. 调用 API 生成消息
       const locale = isChinese() ? 'zh' : 'en';
-      const commitMsg = await generateCommitMessage(diff, locale, apiKey);
 
-      // 3. 设置提交消息
+      // 准备流式输出
+      let targetInputBox: any = null;
+      try {
+        targetInputBox = await getRepoInputBox();
+        if (targetInputBox) {
+          targetInputBox.value = ''; // 清空当前内容
+        }
+      } catch (e) {
+        // 忽略获取 inputBox 失败，稍后尝试一次性设置
+      }
+
+      let accumulatedMessage = '';
+      const onChunk = (chunk: string) => {
+        accumulatedMessage += chunk;
+        if (targetInputBox) {
+          targetInputBox.value = accumulatedMessage;
+        }
+      };
+
+      const commitMsg = await generateCommitMessage(diff, locale, apiKey, onChunk);
+
+      // 3. 设置提交消息 (确保最终一致性)
       if (commitMsg) {
         output.appendLine(isChinese() ? '生成的消息:' : 'Generated Message:');
         output.appendLine(commitMsg);
-        await setCommitMessage(commitMsg, output);
-        output.appendLine(M.commitArea.copiedDone());
+
+        // 如果流式过程中没有获取到 inputBox，或者为了保险起见，再次设置
+        if (!targetInputBox) {
+          await setCommitMessage(commitMsg, output);
+        } else {
+          // 已经在流式中更新了，只需记录日志
+          output.appendLine(M.commitArea.copiedDone());
+        }
       } else {
         output.appendLine(
           isChinese()

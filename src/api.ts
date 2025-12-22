@@ -98,7 +98,7 @@ interface ClaudeResponse {
 
 // OpenAI/Azure API 响应体格式
 interface OpenAIResponse {
-  choices: Array<{ message: { content: string } }>;
+  choices: Array<{ message: { content: string }; delta?: { content: string } }>;
 }
 
 // 调用 Claude API
@@ -150,7 +150,8 @@ async function callOpenAICompatibleAPI(
   apiUrl: string,
   model: string,
   apiKey: string,
-  provider: APIProvider
+  provider: APIProvider,
+  onChunk?: (chunk: string) => void
 ): Promise<string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -170,7 +171,7 @@ async function callOpenAICompatibleAPI(
       { role: 'user', content: `Git Diff:\n${userMessage}` },
     ],
     temperature: 0.7,
-    stream: false,
+    stream: !!onChunk,
   };
 
   const response = await fetch(apiUrl, {
@@ -182,6 +183,45 @@ async function callOpenAICompatibleAPI(
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`API Request Failed: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+
+  if (onChunk && response.body) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let finalContent = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // Keep the last partial line in the buffer
+
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine || trimmedLine === 'data: [DONE]') {
+          continue;
+        }
+        if (trimmedLine.startsWith('data: ')) {
+          try {
+            const jsonStr = trimmedLine.slice(6);
+            const data = JSON.parse(jsonStr);
+            const content = data.choices?.[0]?.delta?.content || '';
+            if (content) {
+              finalContent += content;
+              onChunk(content);
+            }
+          } catch (e) {
+            console.error('Error parsing stream data:', e);
+          }
+        }
+      }
+    }
+    return finalContent.trim();
   }
 
   const data = (await response.json()) as OpenAIResponse;
@@ -199,7 +239,8 @@ async function callOpenAICompatibleAPI(
 export async function generateCommitMessage(
   diff: string,
   locale: string,
-  apiKey: string
+  apiKey: string,
+  onChunk?: (chunk: string) => void
 ): Promise<string> {
   const config = vscode.workspace.getConfiguration('ai-commit-message');
   const provider = config.get<string>('apiProvider', 'openai') as APIProvider;
@@ -223,7 +264,8 @@ export async function generateCommitMessage(
         apiUrl,
         model,
         apiKey,
-        provider
+        provider,
+        onChunk
       );
     }
   } catch (error: any) {
