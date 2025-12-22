@@ -36,8 +36,7 @@ const M = {
         : `[Error] Failed to set commit message: ${e?.message ?? e}`,
     copiedDone: () =>
       isChinese() ? '\n[已将提交消息转录到输入栏]' : '\n[Commit message pasted into input]',
-    noDiff: () =>
-      isChinese() ? '[信息] 未检测到暂存区更改。' : '[Info] No staged changes detected.',
+    noDiff: () => (isChinese() ? '[信息] 未检测到更改。' : '[Info] No changes detected.'),
   },
   apiConfig: {
     selectProvider: () => (isChinese() ? '请选择 API 提供者' : 'Select API Provider'),
@@ -194,6 +193,8 @@ export function activate(context: vscode.ExtensionContext) {
         statusItem.hide();
         return;
       }
+
+      output.appendLine(`Git Diff:\n${diff}`);
 
       // 2. 调用 API 生成消息
       const locale = isChinese() ? 'zh' : 'en';
