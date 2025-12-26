@@ -13,13 +13,13 @@ const isChinese = (): boolean => {
 
 // 消息字典: 中文/英语（其他语言默认为英语）
 const M = {
-  outputChannel: () => (isChinese() ? 'commit message gene' : 'commit message gene'), // 固有名词通用
+  outputChannel: () => (isChinese() ? 'AI Commit Message' : 'AI Commit Message'), // 固有名词通用
   status: {
     generating: () =>
       isChinese()
         ? '$(sync~spin) $(sparkle-filled)正在生成提交消息$(sparkle-filled)'
         : '$(sync~spin) Generating commit message...',
-    generatingTip: () => (isChinese() ? '正在生成 Commit Message' : 'Generating commit message'),
+    generatingTip: () => (isChinese() ? '正在生成提交消息' : 'Generating commit message'),
   },
   commitArea: {
     copiedGitApi: () =>
@@ -179,7 +179,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     if (!statusItem) {
-      statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1000);
+      statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
     }
     statusItem.text = M.status.generating();
     statusItem.tooltip = M.status.generatingTip();
