@@ -1,48 +1,60 @@
 // The module 'vscode' contains the VSCode extensibility API
 // Import the module and reference it with the alias vscode in your code below
-import * as vscode from 'vscode';
-import { provider } from './provider';
-import { getGitDiff } from './git';
-import { generateCommitMessage, type APIProvider } from './api';
+import * as vscode from "vscode";
+import { provider } from "./provider";
+import { getGitDiff } from "./git";
+import { generateCommitMessage, type APIProvider } from "./api";
 
 // 语言判定: VSCode 的 UI 语言是否为中文 (zh*)
 const isChinese = (): boolean => {
-  const lang = (vscode.env.language || '').toLowerCase();
-  return lang === 'zh' || lang.startsWith('zh-');
+  const lang = (vscode.env.language || "").toLowerCase();
+  // return lang === 'zh' || lang.startsWith('zh-');
+  return true;
 };
 
 // 消息字典: 中文/英语（其他语言默认为英语）
 const M = {
-  outputChannel: () => (isChinese() ? 'AI Commit Message' : 'AI Commit Message'), // 固有名词通用
+  outputChannel: () =>
+    isChinese() ? "AI Commit Message" : "AI Commit Message", // 固有名词通用
   status: {
     generating: () =>
       isChinese()
-        ? '$(sync~spin) $(sparkle-filled)正在生成提交消息$(sparkle-filled)'
-        : '$(sync~spin) Generating commit message...',
-    generatingTip: () => (isChinese() ? '正在生成提交消息' : 'Generating commit message'),
+        ? "$(sync~spin) $(sparkle-filled)正在生成提交消息$(sparkle-filled)"
+        : "$(sync~spin) Generating commit message...",
+    generatingTip: () =>
+      isChinese() ? "正在生成提交消息" : "Generating commit message",
   },
   commitArea: {
     copiedGitApi: () =>
-      isChinese() ? '[已转录到提交消息栏: git API]' : '[Committed message pasted: git API]',
+      isChinese()
+        ? "[已转录到提交消息栏: git API]"
+        : "[Committed message pasted: git API]",
     copiedScm: () =>
       isChinese()
-        ? '[已转录到提交消息栏: scm.inputBox]'
-        : '[Committed message pasted: scm.inputBox]',
+        ? "[已转录到提交消息栏: scm.inputBox]"
+        : "[Committed message pasted: scm.inputBox]",
     warnNoAccess: () =>
-      isChinese() ? '[警告] 无法访问提交消息栏' : '[Warn] Could not access commit message box',
+      isChinese()
+        ? "[警告] 无法访问提交消息栏"
+        : "[Warn] Could not access commit message box",
     errorSet: (e: any) =>
       isChinese()
         ? `[错误] 设置提交消息失败: ${e?.message ?? e}`
         : `[Error] Failed to set commit message: ${e?.message ?? e}`,
     copiedDone: () =>
-      isChinese() ? '\n[已将提交消息转录到输入栏]' : '\n[Commit message pasted into input]',
-    noDiff: () => (isChinese() ? '[信息] 未检测到更改。' : '[Info] No changes detected.'),
+      isChinese()
+        ? "\n[已将提交消息转录到输入栏]"
+        : "\n[Commit message pasted into input]",
+    noDiff: () =>
+      isChinese() ? "[信息] 未检测到更改。" : "[Info] No changes detected.",
   },
   apiConfig: {
-    selectProvider: () => (isChinese() ? '请选择 API 提供者' : 'Select API Provider'),
-    selectProviderTip: () => (isChinese() ? '选择一个 AI API 提供者' : 'Choose an AI API provider'),
-    configureSettings: () => (isChinese() ? '配置设置' : 'Configure Settings'),
-    openSettings: () => (isChinese() ? '打开设置' : 'Open Settings'),
+    selectProvider: () =>
+      isChinese() ? "请选择 API 提供者" : "Select API Provider",
+    selectProviderTip: () =>
+      isChinese() ? "选择一个 AI API 提供者" : "Choose an AI API provider",
+    configureSettings: () => (isChinese() ? "配置设置" : "Configure Settings"),
+    openSettings: () => (isChinese() ? "打开设置" : "Open Settings"),
   },
 };
 
@@ -54,13 +66,18 @@ export function activate(context: vscode.ExtensionContext) {
   // 获取 Git InputBox 引用
   async function getRepoInputBox(): Promise<any> {
     // 激活 SCM 视图
-    await vscode.commands.executeCommand('workbench.view.scm');
+    await vscode.commands.executeCommand("workbench.view.scm");
 
     // 获取 git 扩展的 API（如果存在）
-    const gitExt = vscode.extensions.getExtension('vscode.git');
+    const gitExt = vscode.extensions.getExtension("vscode.git");
     if (gitExt) {
-      const exportsAny = gitExt.isActive ? (gitExt.exports as any) : await gitExt.activate();
-      const gitApi = typeof exportsAny?.getAPI === 'function' ? exportsAny.getAPI(1) : exportsAny;
+      const exportsAny = gitExt.isActive
+        ? (gitExt.exports as any)
+        : await gitExt.activate();
+      const gitApi =
+        typeof exportsAny?.getAPI === "function"
+          ? exportsAny.getAPI(1)
+          : exportsAny;
       const repos = (gitApi?.repositories ?? []) as any[];
       if (repos.length > 0 && repos[0]?.inputBox) {
         return repos[0].inputBox;
@@ -77,12 +94,17 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   // 安全设置提交消息到输入框的辅助函数
-  async function setCommitMessage(message: string, output: vscode.OutputChannel) {
+  async function setCommitMessage(
+    message: string,
+    output: vscode.OutputChannel,
+  ) {
     try {
       const inputBox = await getRepoInputBox();
       if (inputBox) {
         inputBox.value = message;
-        output.appendLine(isChinese() ? '[已转录到提交消息栏]' : '[Committed message pasted]');
+        output.appendLine(
+          isChinese() ? "[已转录到提交消息栏]" : "[Committed message pasted]",
+        );
         return;
       }
       output.appendLine(M.commitArea.warnNoAccess());
@@ -91,7 +113,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  const SECRET_KEY = 'ai-commit-message.apiKey';
+  const SECRET_KEY = "ai-commit-message.apiKey";
 
   // 获取或提示输入 API Key
   async function getApiKey(): Promise<string | undefined> {
@@ -104,17 +126,17 @@ export function activate(context: vscode.ExtensionContext) {
     // 2. 如果没有，弹窗提示输入
     const input = await vscode.window.showInputBox({
       prompt: isChinese()
-        ? '请输入您的 API Key（将安全存储）'
-        : 'Enter your API Key (will be stored securely)',
+        ? "请输入您的 API Key（将安全存储）"
+        : "Enter your API Key (will be stored securely)",
       password: true,
-      placeHolder: 'sk-xxxxxxxxxxxxxxxxxxxxxxxx',
+      placeHolder: "sk-xxxxxxxxxxxxxxxxxxxxxxxx",
       ignoreFocusOut: true,
     });
 
     if (input) {
       await context.secrets.store(SECRET_KEY, input);
       vscode.window.showInformationMessage(
-        isChinese() ? 'API Key 已安全保存！' : 'API Key saved securely!'
+        isChinese() ? "API Key 已安全保存！" : "API Key saved securely!",
       );
       return input;
     }
@@ -124,22 +146,25 @@ export function activate(context: vscode.ExtensionContext) {
 
   // 检查或提示配置 API 设置
   async function ensureAPIConfigured(): Promise<boolean> {
-    const config = vscode.workspace.getConfiguration('ai-commit-message');
-    const provider = config.get<string>('apiProvider', 'openai');
-    const apiUrl = config.get<string>('apiUrl');
-    const model = config.get<string>('model');
+    const config = vscode.workspace.getConfiguration("ai-commit-message");
+    const provider = config.get<string>("apiProvider", "openai");
+    const apiUrl = config.get<string>("apiUrl");
+    const model = config.get<string>("model");
 
     // 如果任何配置缺失，提示用户
     if (!apiUrl || !model) {
       const selection = await vscode.window.showWarningMessage(
         isChinese()
-          ? 'AI Commit Message 需要配置 API 提供者'
-          : 'AI Commit Message needs API configuration',
-        M.apiConfig.configureSettings()
+          ? "AI Commit Message 需要配置 API 提供者"
+          : "AI Commit Message needs API configuration",
+        M.apiConfig.configureSettings(),
       );
 
       if (selection === M.apiConfig.configureSettings()) {
-        await vscode.commands.executeCommand('workbench.action.openSettings', 'ai-commit-message');
+        await vscode.commands.executeCommand(
+          "workbench.action.openSettings",
+          "ai-commit-message",
+        );
         return false;
       }
     }
@@ -148,117 +173,145 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   // 清除 API Key 命令
-  const clearKeyCmd = vscode.commands.registerCommand('ai-commit-message.clearApiKey', async () => {
-    await context.secrets.delete(SECRET_KEY);
-    vscode.window.showInformationMessage(isChinese() ? 'API Key 已清除！' : 'API Key cleared!');
-  });
+  const clearKeyCmd = vscode.commands.registerCommand(
+    "ai-commit-message.clearApiKey",
+    async () => {
+      await context.secrets.delete(SECRET_KEY);
+      vscode.window.showInformationMessage(
+        isChinese() ? "API Key 已清除！" : "API Key cleared!",
+      );
+    },
+  );
   context.subscriptions.push(clearKeyCmd);
 
-  const disposable = vscode.commands.registerCommand(provider.commandId, async () => {
-    const output = vscode.window.createOutputChannel(M.outputChannel());
+  const disposable = vscode.commands.registerCommand(
+    provider.commandId,
+    async () => {
+      const output = vscode.window.createOutputChannel(M.outputChannel());
 
-    const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspacePath) {
-      output.appendLine(isChinese() ? '未找到工作区文件夹。' : 'No workspace folder found.');
-      return;
-    }
-
-    // 检查 API 配置
-    const configured = await ensureAPIConfigured();
-    if (!configured) {
-      return;
-    }
-
-    // 获取 API Key
-    const apiKey = await getApiKey();
-    if (!apiKey) {
-      output.appendLine(
-        isChinese() ? '未提供 API Key，操作已取消。' : 'No API Key provided, operation cancelled.'
-      );
-      return;
-    }
-
-    if (!statusItem) {
-      statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-    }
-    statusItem.text = M.status.generating();
-    statusItem.tooltip = M.status.generatingTip();
-    statusItem.show();
-
-    try {
-      // 1. 获取 Git Diff
-      const diff = await getGitDiff(workspacePath);
-      if (!diff || !diff.trim()) {
-        output.appendLine(M.commitArea.noDiff());
-        statusItem.hide();
+      const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!workspacePath) {
+        output.appendLine(
+          isChinese() ? "未找到工作区文件夹。" : "No workspace folder found.",
+        );
         return;
       }
 
-      output.appendLine(`Git Diff:\n${diff}`);
-
-      // 2. 调用 API 生成消息
-      const locale = isChinese() ? 'zh' : 'en';
-
-      // 准备流式输出
-      let targetInputBox: any = null;
-      try {
-        targetInputBox = await getRepoInputBox();
-        if (targetInputBox) {
-          targetInputBox.value = ''; // 清空当前内容
-        }
-      } catch (e) {
-        // 忽略获取 inputBox 失败，稍后尝试一次性设置
+      // 检查 API 配置
+      const configured = await ensureAPIConfigured();
+      if (!configured) {
+        return;
       }
 
-      let accumulatedMessage = '';
-      const onChunk = (chunk: string) => {
-        accumulatedMessage += chunk;
-        if (targetInputBox) {
-          targetInputBox.value = accumulatedMessage;
-        }
-      };
-
-      const commitMsg = await generateCommitMessage(diff, locale, apiKey, onChunk);
-
-      // 3. 设置提交消息 (确保最终一致性)
-      if (commitMsg) {
-        output.appendLine(isChinese() ? '生成的消息:' : 'Generated Message:');
-        output.appendLine(commitMsg);
-
-        // 如果流式过程中没有获取到 inputBox，或者为了保险起见，再次设置
-        if (!targetInputBox) {
-          await setCommitMessage(commitMsg, output);
-        } else {
-          // 已经在流式中更新了，只需记录日志
-          output.appendLine(M.commitArea.copiedDone());
-        }
-      } else {
+      // 获取 API Key
+      const apiKey = await getApiKey();
+      if (!apiKey) {
         output.appendLine(
           isChinese()
-            ? '未能从 API 响应中提取提交消息。'
-            : 'Failed to extract commit message from API response.'
+            ? "未提供 API Key，操作已取消。"
+            : "No API Key provided, operation cancelled.",
+        );
+        return;
+      }
+
+      if (!statusItem) {
+        statusItem = vscode.window.createStatusBarItem(
+          vscode.StatusBarAlignment.Left,
         );
       }
-    } catch (error: any) {
-      output.appendLine(isChinese() ? `错误: ${error.message}` : `Error: ${error.message}`);
-      // 如果API返回401，可能是Key无效，提示重新输入
-      if (error.message.includes('401') || error.message.includes('Unauthorized')) {
-        const retryBtn = isChinese() ? '重新输入 API Key' : 'Re-enter API Key';
-        const selection = await vscode.window.showErrorMessage(
-          isChinese() ? 'API Key 无效或已过期' : 'API Key is invalid or expired',
-          retryBtn
-        );
-        if (selection === retryBtn) {
-          await context.secrets.delete(SECRET_KEY);
-          vscode.commands.executeCommand(provider.commandId);
+      statusItem.text = M.status.generating();
+      statusItem.tooltip = M.status.generatingTip();
+      statusItem.show();
+
+      try {
+        // 1. 获取 Git Diff
+        const diff = await getGitDiff(workspacePath);
+        if (!diff || !diff.trim()) {
+          output.appendLine(M.commitArea.noDiff());
+          statusItem.hide();
+          return;
         }
-      } else {
-        vscode.window.showErrorMessage(error.message);
+
+        output.appendLine(`Git Diff:\n${diff}`);
+
+        // 2. 调用 API 生成消息
+        const locale = isChinese() ? "zh" : "en";
+
+        // 准备流式输出
+        let targetInputBox: any = null;
+        try {
+          targetInputBox = await getRepoInputBox();
+          if (targetInputBox) {
+            targetInputBox.value = ""; // 清空当前内容
+          }
+        } catch (e) {
+          // 忽略获取 inputBox 失败，稍后尝试一次性设置
+        }
+
+        let accumulatedMessage = "";
+        const onChunk = (chunk: string) => {
+          accumulatedMessage += chunk;
+          if (targetInputBox) {
+            targetInputBox.value = accumulatedMessage;
+          }
+        };
+
+        const commitMsg = await generateCommitMessage(
+          diff,
+          locale,
+          apiKey,
+          onChunk,
+        );
+
+        // 3. 设置提交消息 (确保最终一致性)
+        if (commitMsg) {
+          output.appendLine(isChinese() ? "生成的消息:" : "Generated Message:");
+          output.appendLine(commitMsg);
+
+          // 如果流式过程中没有获取到 inputBox，或者为了保险起见，再次设置
+          if (!targetInputBox) {
+            await setCommitMessage(commitMsg, output);
+          } else {
+            // 已经在流式中更新了，只需记录日志
+            output.appendLine(M.commitArea.copiedDone());
+          }
+        } else {
+          output.appendLine(
+            isChinese()
+              ? "未能从 API 响应中提取提交消息。"
+              : "Failed to extract commit message from API response.",
+          );
+        }
+      } catch (error: any) {
+        output.appendLine(
+          isChinese() ? `错误: ${error.message}` : `Error: ${error.message}`,
+        );
+        // 如果API返回401，可能是Key无效，提示重新输入
+        if (
+          error.message.includes("401") ||
+          error.message.includes("Unauthorized")
+        ) {
+          const retryBtn = isChinese()
+            ? "重新输入 API Key"
+            : "Re-enter API Key";
+          const selection = await vscode.window.showErrorMessage(
+            isChinese()
+              ? "API Key 无效或已过期"
+              : "API Key is invalid or expired",
+            retryBtn,
+          );
+          if (selection === retryBtn) {
+            await context.secrets.delete(SECRET_KEY);
+            vscode.commands.executeCommand(provider.commandId);
+          }
+        } else {
+          vscode.window.showErrorMessage(error.message);
+        }
+      } finally {
+        statusItem.hide();
       }
-    } finally {
-      statusItem.hide();
-    }
-  });
+    },
+  );
 
   context.subscriptions.push(disposable);
 }

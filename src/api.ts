@@ -165,7 +165,7 @@ async function callOpenAICompatibleAPI(
     model: model,
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: `Git Diff:\n${userMessage}` },
+      { role: "user", content: userMessage },
     ],
     temperature: 0.2,
     top_p: 1.0,
